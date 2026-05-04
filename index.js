@@ -365,21 +365,41 @@ async function handleEvent(event) {
   } else if (session && session.step === 'waiting_date') {
     if (/^\d{4}-\d{2}-\d{2}$/.test(userText)) {
       if (session.reservationType === 'normal') {
-        const targetDate = new Date(userText + 'T00:00:00');
-        const bookingOpenDate = new Date(targetDate);
-        bookingOpenDate.setDate(bookingOpenDate.getDate() - 7);
-        bookingOpenDate.setHours(0, 0, 0, 0);
+        const [year, month, day] = userText.split('-').map(Number);
 
+        // JST基準で「利用日 00:00」を作る
+        const targetDateJst = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+
+        // 7日前のJST 00:00
+          const bookingOpenDateJst = new Date(targetDateJst);
+        bookingOpenDateJst.setUTCDate(bookingOpenDateJst.getUTCDate() - 7);
+
+        // 現在時刻をJSTに補正して比較
         const now = new Date();
+        const nowJst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
 
-        if (now < bookingOpenDate) {
-          const y = bookingOpenDate.getFullYear();
-          const m = String(bookingOpenDate.getMonth() + 1).padStart(2, '0');
-          const d = String(bookingOpenDate.getDate()).padStart(2, '0');
-          const hh = String(bookingOpenDate.getHours()).padStart(2, '0');
-          const mm = String(bookingOpenDate.getMinutes()).padStart(2, '0');
+        const bookingOpenMillis = Date.UTC(
+          bookingOpenDateJst.getUTCFullYear(),
+          bookingOpenDateJst.getUTCMonth(),
+          bookingOpenDateJst.getUTCDate(),
+          0, 0, 0
+        );
 
-          replyText = `予約可能期間外です。${y}-${m}-${d} ${hh}:${mm} から予約できます。`;
+        const nowJstMillis = Date.UTC(
+          nowJst.getUTCFullYear(),
+          nowJst.getUTCMonth(),
+          nowJst.getUTCDate(),
+          nowJst.getUTCHours(),
+          nowJst.getUTCMinutes(),
+          nowJst.getUTCSeconds()
+        );
+
+        if (nowJstMillis < bookingOpenMillis) {
+          const y = bookingOpenDateJst.getUTCFullYear();
+          const m = String(bookingOpenDateJst.getUTCMonth() + 1).padStart(2, '0');
+          const d = String(bookingOpenDateJst.getUTCDate()).padStart(2, '0');
+
+          replyText = `予約可能期間外です。${y}-${m}-${d} 00:00 から予約できます。`;
         } else {
           sessions.set(userId, {
             ...session,
